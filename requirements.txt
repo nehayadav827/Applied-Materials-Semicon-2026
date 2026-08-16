@@ -1,0 +1,21 @@
+# Core dependencies, pinned to the versions confirmed working in this
+# project's development environment (Windows, Python 3.12.0).
+#
+# IMPORTANT: the submission checklist asks for "complete pip freeze output
+# from your development environment" for full reproducibility. This file
+# lists the direct dependencies only -- before final submission, activate
+# your actual working virtualenv/environment and regenerate this file with:
+#
+#     pip freeze > requirements.txt
+#
+# so it captures every transitive dependency exactly as installed on your
+# machine, not just the ones listed here.
+
+numpy>=1.26,<3.0
+opencv-python==4.11.0.86
+pandas>=2.0
+
+# Only required if you use --use-cnn in localize.py, or run
+# train_reranker.py / evaluate.py without --no-cnn. localize.py in its
+# default (best-performing) mode has NO torch dependency at all.
+torch==2.10.0
