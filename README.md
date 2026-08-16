@@ -198,3 +198,4 @@ coordinates -- `GT_X`/`GT_Y` in the generator's output, and the `(x, y)`
 See `references.md` for the full list of public sources justifying the
 synthetic pattern styles and noise model, and how each maps to the
 citations used in the presentation slides.
+
