@@ -1,14 +1,42 @@
 """
 ================================================================================
- Multi-Region Die-Layout SEM Reference/Search BATCH Generator (v6 - Drift-Sense)
+ Multi-Region Die-Layout SEM Reference/Search BATCH Generator (v7 - Drift-Sense)
 ================================================================================
-v6 changes vs v5:
+Standalone dataset-generator script for the Applied Materials "Drift-Sense"
+hackathon problem statement. Generates paired 1000x1000 grayscale reference
+(100x close-up) / search (10x wide-field) SEM-style images with recorded
+ground-truth target-centre coordinates and per-pair metadata.
 
-  - N_SAMPLES raised to 500 (per final-submission request; validation
-    requirement in the problem statement is only >=30, so 500 gives large
-    headroom for a stratified train/val/test split across difficulty levels,
-    generation modes and pattern styles without duplicate "worlds" leaking
-    across splits).
+Usage:
+    python generate_dataset.py --architecture dram   --num_pairs 50 --output_dir ./out_dram
+    python generate_dataset.py --architecture finfet --num_pairs 50 --output_dir ./out_finfet
+    python generate_dataset.py --architecture mix     --num_pairs 50 --output_dir ./out_mix
+    python generate_dataset.py --help
+
+Required CLI parameters (per the hackathon deliverables table):
+  --architecture   dram | finfet | mix   (which structure family to generate)
+  --num_pairs      int                   (number of pairs to generate, >=30 recommended)
+  --output_dir     path                  (directory the dataset is written into)
+
+v7 changes vs v6:
+
+  - Added --architecture / --num_pairs / --output_dir / --seed as CLI
+    arguments (argparse) instead of hardcoded globals, so the script can be
+    run non-interactively and reproducibly as required by the hackathon
+    deliverables table ("Must accept parameters: architecture style
+    (DRAM/FinFET), number of pairs to generate, output directory").
+  - --architecture dram/finfet now strictly restrict every generated pair
+    to that family's pattern functions only (no cross-contamination).
+    --architecture mix keeps the original v6 behaviour (DRAM + FinFET +
+    the extra bonus pattern families: mesh_grid, ring_array,
+    contact_array, layered_cell, logic_stripes, beol_interconnect,
+    standard_cell_regular). Those bonus families are intentionally NOT
+    available under pure "dram"/"finfet" runs, since the problem statement
+    only asks for DRAM-style OR FinFET-style structures.
+  - Each sample's metadata.json / ground_truth.csv row now also records
+    "architecture_requested" for traceability.
+
+v6 changes vs v5:
 
   - "edge_brightening" post-process step added to the noise pipeline,
     applied to BOTH reference and search images (independently -- each
@@ -34,11 +62,11 @@ v6 changes vs v5:
 """
 
 import os
+import argparse
 import shutil
 import json
 import random
 import hashlib
-import argparse
 import numpy as np
 import cv2
 import pandas as pd
@@ -129,28 +157,14 @@ ANCHOR_PROB_EXPANDED = 0.15
 ANCHOR_PROB_SINGLE_FIELD = 0.30
 REF_ON_ANCHOR_PROB = 0.25
 
-GEN_MODE_WEIGHTS = {
-    "legacy": 0.25,
-    "realistic": 0.35,
-    "expanded": 0.25,
-    "single_field": 0.15,
-}
+BASE_SEED = 99991001
 
-N_SAMPLES = 30                 # raised from 220 -> 500 per final request
-BASE_SEED = 20260814
-
-OUT_ROOT = "./synthetic_sem_dataset_v6"
-
-# --- architecture-style filter (CLI --style dram|finfet|mixed) -------------
-# "mixed" (default) keeps the full original diversity used for every result
-# reported so far (all pattern families, memory- and logic-style alike).
-# "dram" / "finfet" restrict every mat in every generated world to that
-# architecture family only, per the submission checklist's requirement that
-# the generator "must accept parameters: architecture style (DRAM/FinFET)".
-STYLE_MODE = "mixed"
-DRAM_STYLE_FNS = None    # populated after the style functions are defined below
-FINFET_STYLE_FNS = None
-# Output directory is created inside main() after CLI args are parsed.
+# Defaults used only if the script is run without CLI args (kept for
+# backward-compatible import/testing). Real runs should pass --num_pairs,
+# --output_dir and --architecture explicitly (see argparse in main()).
+DEFAULT_N_SAMPLES = 50
+DEFAULT_OUT_ROOT = "./synthetic_sem_dataset_holdout"
+DEFAULT_ARCHITECTURE = "mix"
 
 
 def _grid_coords(size, pitch, phase=0):
@@ -438,31 +452,95 @@ def expanded_random(size):
     return build_logic_stripes(size, random.randint(20, 45), random.randint(50, 140), palette)
 
 
-def layered_cell_random(size):
-    """Zero-arg wrapper around build_layered_cell (word-line/bit-line/
-    storage-contact stack) for use in the DRAM-only style pool -- same
-    generator expanded_random() already uses internally, exposed standalone."""
-    pw = random.randint(50, 110)
-    pb = random.randint(50, 110)
-    return build_layered_cell(size, pw, max(8, pw // 3), pb, max(8, pb // 3),
-                               random.randint(6, 16))
+# ============================================================================
+# 1d. ARCHITECTURE-AWARE STYLE POOLS  (Drift-Sense requirement: "Must accept
+# parameters: architecture style (DRAM/FinFET), number of pairs to generate,
+# output directory.")
+#
+# --architecture dram    -> EVERY generated pair uses ONLY DRAM-style
+#                            pattern functions (legacy_dram_1x,
+#                            realistic_dram_staggered, wavy_dram_bitline).
+# --architecture finfet  -> EVERY generated pair uses ONLY FinFET-style
+#                            pattern functions (legacy_finfet,
+#                            realistic_finfet_via).
+# --architecture mix     -> original v6 behaviour: DRAM + FinFET + the
+#                            extra "expanded" pattern families (mesh_grid,
+#                            ring_array, contact_array, layered_cell,
+#                            logic_stripes, beol_interconnect,
+#                            standard_cell_regular). The problem statement
+#                            only asks for DRAM-style OR FinFET-style
+#                            structures, so those extra bonus families are
+#                            kept ONLY under "mix" and never appear in a
+#                            pure "dram" or "finfet" run.
+# ============================================================================
+
+DRAM_STYLE_FNS = [legacy_dram_1x, realistic_dram_staggered, wavy_dram_bitline]
+FINFET_STYLE_FNS = [legacy_finfet, realistic_finfet_via]
+
+# Generation-mode weights per architecture. "expanded" is only ever
+# sampled when architecture == "mix".
+GEN_MODE_WEIGHTS_BY_ARCH = {
+    "dram": {
+        "legacy": 0.35,
+        "realistic": 0.45,
+        "single_field": 0.20,
+    },
+    "finfet": {
+        "legacy": 0.35,
+        "realistic": 0.45,
+        "single_field": 0.20,
+    },
+    "mix": {
+        "legacy": 0.25,
+        "realistic": 0.35,
+        "expanded": 0.25,
+        "single_field": 0.15,
+    },
+}
 
 
-def standard_cell_or_stripes_random(size):
-    """Zero-arg wrapper picking between standard_cell_regular and
-    logic_stripes (both FinFET/logic-context patterns per STYLE_CITATION_MAP)
-    for use in the FinFET-only style pool."""
-    if random.random() < 0.5:
-        return standard_cell_regular(size)
-    palette = random.sample(range(30, 230, 20), k=5)
-    return build_logic_stripes(size, random.randint(20, 45), random.randint(50, 140), palette)
+def choose_generation_mode(architecture):
+    """Pick a generation mode ('legacy' / 'realistic' / 'expanded' /
+    'single_field') using the weight table for the requested architecture.
+    'expanded' never appears unless architecture == 'mix'."""
+    weights_dict = GEN_MODE_WEIGHTS_BY_ARCH[architecture]
+    modes, weights = zip(*weights_dict.items())
+    return random.choices(modes, weights=weights, k=1)[0]
 
 
-# Architecture-style pools for --style dram / --style finfet (CLI-controlled).
-# "mixed" (default, unchanged) uses the original per-family random.choice()
-# logic in build_world_grid/build_world_single_field below instead of these.
-DRAM_STYLE_FNS = [legacy_dram_1x, realistic_dram_staggered, wavy_dram_bitline, layered_cell_random]
-FINFET_STYLE_FNS = [legacy_finfet, realistic_finfet_via, standard_cell_or_stripes_random]
+def get_family_style_fns(family, architecture):
+    """Return the list of pattern-generator functions usable for a given
+    ('legacy' / 'realistic' / 'expanded') family, filtered to the requested
+    architecture. This is the single choke point that guarantees
+    --architecture dram never emits a FinFET pattern and vice versa."""
+    if family == "legacy":
+        if architecture == "dram":
+            return [legacy_dram_1x]
+        if architecture == "finfet":
+            return [legacy_finfet]
+        return [legacy_dram_1x, legacy_finfet]  # mix
+
+    if family == "realistic":
+        if architecture == "dram":
+            return [realistic_dram_staggered, wavy_dram_bitline]
+        if architecture == "finfet":
+            return [realistic_finfet_via]
+        return [realistic_dram_staggered, realistic_finfet_via, wavy_dram_bitline]  # mix
+
+    # family == "expanded" is only ever reached when architecture == "mix"
+    # (see GEN_MODE_WEIGHTS_BY_ARCH), but keep this safe regardless.
+    return [expanded_random]
+
+
+def get_single_field_style_fns(architecture):
+    """Style pool used by build_world_single_field() for the requested
+    architecture."""
+    if architecture == "dram":
+        return DRAM_STYLE_FNS
+    if architecture == "finfet":
+        return FINFET_STYLE_FNS
+    return [legacy_dram_1x, legacy_finfet, realistic_dram_staggered,
+            realistic_finfet_via, expanded_random]  # mix
 
 
 # ============================================================================
@@ -486,21 +564,13 @@ def draw_ladder_anchors(canvas, street_x0, street_width, world_size):
 # 3. WORLD BUILDERS
 # ============================================================================
 
-def build_world_grid(family, difficulty=0.5):
-    if STYLE_MODE == "dram":
-        style_fns = DRAM_STYLE_FNS
-        anchor_prob = ANCHOR_PROB_REALISTIC
-    elif STYLE_MODE == "finfet":
-        style_fns = FINFET_STYLE_FNS
-        anchor_prob = ANCHOR_PROB_REALISTIC
-    elif family == "legacy":
-        style_fns = [legacy_dram_1x, legacy_finfet]
+def build_world_grid(family, difficulty=0.5, architecture="mix"):
+    style_fns = get_family_style_fns(family, architecture)
+    if family == "legacy":
         anchor_prob = ANCHOR_PROB_LEGACY
     elif family == "realistic":
-        style_fns = [realistic_dram_staggered, realistic_finfet_via, wavy_dram_bitline]
         anchor_prob = ANCHOR_PROB_REALISTIC
     else:
-        style_fns = [expanded_random]
         anchor_prob = ANCHOR_PROB_EXPANDED
 
     canvas = np.full((WORLD_PX, WORLD_PX), STREET_GRAY, dtype=np.uint8)
@@ -551,14 +621,8 @@ def build_world_grid(family, difficulty=0.5):
     return canvas, regions, street_x_positions, mat_px, street_px
 
 
-def build_world_single_field():
-    if STYLE_MODE == "dram":
-        style_fns = DRAM_STYLE_FNS
-    elif STYLE_MODE == "finfet":
-        style_fns = FINFET_STYLE_FNS
-    else:
-        style_fns = [legacy_dram_1x, legacy_finfet, realistic_dram_staggered,
-                     realistic_finfet_via, expanded_random]
+def build_world_single_field(architecture="mix"):
+    style_fns = get_single_field_style_fns(architecture)
     canvas, params = random.choice(style_fns)(WORLD_PX)
 
     has_anchor = random.random() < ANCHOR_PROB_SINGLE_FIELD
@@ -850,11 +914,9 @@ def pick_search_window(ref_x0, ref_y0):
 # ============================================================================
 # 6. PER-SAMPLE ORCHESTRATOR
 # ============================================================================
-
-def choose_generation_mode():
-    modes, weights = zip(*GEN_MODE_WEIGHTS.items())
-    return random.choices(modes, weights=weights, k=1)[0]
-
+# (choose_generation_mode() lives up in section 1d, since it needs to be
+# architecture-aware and the architecture-filtered style pools are defined
+# there right after the pattern functions.)
 
 def compute_world_id(gen_mode, unique_seed, regions):
     """Stable hash identifying the underlying pattern 'world' this sample was
@@ -866,15 +928,16 @@ def compute_world_id(gen_mode, unique_seed, regions):
     return hashlib.sha1(raw.encode("utf-8")).hexdigest()[:12]
 
 
-def generate_sample(unique_seed, difficulty):
+def generate_sample(unique_seed, difficulty, architecture="mix"):
     random.seed(unique_seed)
     np.random.seed(unique_seed % (2**32 - 1))
 
-    gen_mode = choose_generation_mode()
+    gen_mode = choose_generation_mode(architecture)
     if gen_mode == "single_field":
-        world, regions, street_x_positions, mat_px, street_px = build_world_single_field()
+        world, regions, street_x_positions, mat_px, street_px = build_world_single_field(architecture)
     else:
-        world, regions, street_x_positions, mat_px, street_px = build_world_grid(gen_mode, difficulty=difficulty)
+        world, regions, street_x_positions, mat_px, street_px = build_world_grid(
+            gen_mode, difficulty=difficulty, architecture=architecture)
 
     world_id = compute_world_id(gen_mode, unique_seed, regions)
 
@@ -911,6 +974,7 @@ def generate_sample(unique_seed, difficulty):
 
     metadata = {
         "world_id": world_id,
+        "architecture_requested": architecture,
         "generation_mode": gen_mode,
         "difficulty": round(difficulty, 4),
         "difficulty_tier": ("easy" if difficulty < 1 / 3 else "medium" if difficulty < 2 / 3 else "hard"),
@@ -952,53 +1016,71 @@ def make_visualization(search_img, meta):
 
 
 # ============================================================================
-# 7. BATCH GENERATION WITH GROUPED FOLDERS
+# 7. CLI ARGUMENTS
+# ============================================================================
+
+def parse_args():
+    parser = argparse.ArgumentParser(
+        description=("Drift-Sense synthetic SEM reference/search dataset generator. "
+                     "Generates paired 1000x1000 reference (100x) and search (10x) "
+                     "grayscale images with recorded ground-truth centre coordinates.")
+    )
+    parser.add_argument(
+        "--architecture", type=str, default=DEFAULT_ARCHITECTURE,
+        choices=["dram", "finfet", "mix"],
+        help=("Which structure family to generate. 'dram' -> every pair is "
+             "DRAM-style only. 'finfet' -> every pair is FinFET-style only. "
+             "'mix' -> DRAM + FinFET + extra bonus pattern families (default: "
+             f"{DEFAULT_ARCHITECTURE}). The hackathon problem statement asks "
+             "you to pick DRAM-style OR FinFET-style for your submission.")
+    )
+    parser.add_argument(
+        "--num_pairs", type=int, default=DEFAULT_N_SAMPLES,
+        help=f"Number of reference/search image pairs to generate (default: {DEFAULT_N_SAMPLES}). "
+             "Problem statement requires at least 30 for validation."
+    )
+    parser.add_argument(
+        "--output_dir", type=str, default=DEFAULT_OUT_ROOT,
+        help=f"Directory to write the dataset into (default: {DEFAULT_OUT_ROOT})."
+    )
+    parser.add_argument(
+        "--seed", type=int, default=BASE_SEED,
+        help=f"Base random seed for reproducibility (default: {BASE_SEED})."
+    )
+    return parser.parse_args()
+
+
+# ============================================================================
+# 8. BATCH GENERATION WITH GROUPED FOLDERS
 # ============================================================================
 
 def main():
-    global STYLE_MODE, N_SAMPLES, OUT_ROOT, BASE_SEED
+    args = parse_args()
+    architecture = args.architecture
+    n_samples = args.num_pairs
+    out_root = args.output_dir
+    base_seed = args.seed
 
-    parser = argparse.ArgumentParser(
-        description="Drift-Sense synthetic reference/search image-pair generator.")
-    parser.add_argument("--style", choices=["dram", "finfet", "mixed"], default="mixed",
-                         help="Architecture style to generate. 'dram' restricts every mat to "
-                              "DRAM-family patterns (dot/capsule arrays, wavy bitlines, layered "
-                              "word/bit-line cells). 'finfet' restricts to FinFET-family patterns "
-                              "(fin-line grids, gate/via bands, standard-cell tracks). 'mixed' "
-                              "(default) uses the full original diversity across both plus "
-                              "additional interconnect/logic pattern families -- this is what "
-                              "every previously reported accuracy number in this repo used.")
-    parser.add_argument("--num_pairs", type=int, default=N_SAMPLES,
-                         help=f"Number of reference/search pairs to generate (default {N_SAMPLES}).")
-    parser.add_argument("--output_dir", type=str, default=OUT_ROOT,
-                         help=f"Output directory for the dataset (default {OUT_ROOT}).")
-    parser.add_argument("--seed", type=int, default=BASE_SEED,
-                         help=f"Base random seed (default {BASE_SEED}). Each sample uses "
-                              f"seed + i*7919 so runs are reproducible and independent per sample.")
-    args = parser.parse_args()
+    if n_samples < 2:
+        raise ValueError("--num_pairs must be at least 2 (difficulty ramps from 0.0 to 1.0 across samples).")
 
-    STYLE_MODE = args.style
-    N_SAMPLES = args.num_pairs
-    OUT_ROOT = args.output_dir
-    BASE_SEED = args.seed
-    os.makedirs(OUT_ROOT, exist_ok=True)
+    os.makedirs(out_root, exist_ok=True)
 
     records = []
     search_hashes = set()
     duplicate_count = 0
 
-    print(f"Generating {N_SAMPLES} samples (style={STYLE_MODE}) in grouped folders "
-          f"under '{OUT_ROOT}'...")
+    print(f"Generating {n_samples} '{architecture}' samples in grouped folders under '{out_root}'...")
 
-    for i in range(N_SAMPLES):
+    for i in range(n_samples):
         sample_id = f"sample_{i:04d}"
-        sample_folder = os.path.join(OUT_ROOT, sample_id)
+        sample_folder = os.path.join(out_root, sample_id)
         os.makedirs(sample_folder, exist_ok=True)
 
-        difficulty = i / (N_SAMPLES - 1) if N_SAMPLES > 1 else 0.5
-        unique_seed = BASE_SEED + i * 7919
+        difficulty = i / (n_samples - 1)
+        unique_seed = base_seed + i * 7919
 
-        ref_img, search_img, meta = generate_sample(unique_seed, difficulty)
+        ref_img, search_img, meta = generate_sample(unique_seed, difficulty, architecture=architecture)
         vis_img = make_visualization(search_img, meta)
 
         search_hash = hash(search_img.tobytes())
@@ -1011,12 +1093,12 @@ def main():
         vis_rel_path = os.path.join(sample_id, "visualization.png")
         meta_rel_path = os.path.join(sample_id, "metadata.json")
 
-        cv2.imwrite(os.path.join(OUT_ROOT, ref_rel_path), ref_img)
-        cv2.imwrite(os.path.join(OUT_ROOT, search_rel_path), search_img)
-        cv2.imwrite(os.path.join(OUT_ROOT, vis_rel_path), vis_img)
+        cv2.imwrite(os.path.join(out_root, ref_rel_path), ref_img)
+        cv2.imwrite(os.path.join(out_root, search_rel_path), search_img)
+        cv2.imwrite(os.path.join(out_root, vis_rel_path), vis_img)
 
         sample_meta = {"sample_id": sample_id, **meta}
-        with open(os.path.join(OUT_ROOT, meta_rel_path), "w") as f:
+        with open(os.path.join(out_root, meta_rel_path), "w") as f:
             json.dump(sample_meta, f, indent=4)
 
         row = {
@@ -1031,14 +1113,15 @@ def main():
         }
         records.append(row)
 
-        if (i + 1) % 50 == 0 or (i + 1) == N_SAMPLES:
-            print(f"  Progress: {i + 1}/{N_SAMPLES} samples created.")
+        if (i + 1) % 50 == 0 or (i + 1) == n_samples:
+            print(f"  Progress: {i + 1}/{n_samples} samples created.")
 
     df = pd.DataFrame(records)
-    csv_path = os.path.join(OUT_ROOT, "ground_truth.csv")
+    csv_path = os.path.join(out_root, "ground_truth.csv")
     df.to_csv(csv_path, index=False)
 
     citations_manifest = {
+        "architecture_requested": architecture,
         "citations": CITATIONS,
         "style_citation_map": {
             style: {"citation_keys": keys, "justification": note}
@@ -1057,11 +1140,11 @@ def main():
                  "own sample-prompt description (Applied Materials Drift-Sense problem "
                  "statement), not a separate literature source."),
     }
-    with open(os.path.join(OUT_ROOT, "citations.json"), "w") as f:
+    with open(os.path.join(out_root, "citations.json"), "w") as f:
         json.dump(citations_manifest, f, indent=2)
-    print(f"\nWrote citations manifest -> {os.path.join(OUT_ROOT, 'citations.json')}")
+    print(f"\nWrote citations manifest -> {os.path.join(out_root, 'citations.json')}")
 
-    print(f"\nGenerated {len(df)} samples.")
+    print(f"\nGenerated {len(df)} samples (architecture='{architecture}').")
     print(f"Unique search images: {len(search_hashes)} / {len(df)} "
           f"({'OK, all unique' if duplicate_count == 0 else f'{duplicate_count} duplicates found!'})")
     print(f"Unique underlying worlds: {df['world_id'].nunique()} / {len(df)} samples")
@@ -1072,12 +1155,12 @@ def main():
     print("\ndifficulty_level_5_name breakdown:")
     print(df["difficulty_level_5_name"].value_counts())
 
-    zip_path = shutil.make_archive(OUT_ROOT, "zip", OUT_ROOT)
+    zip_path = shutil.make_archive(out_root, "zip", out_root)
     print(f"\nZipped dataset -> {zip_path}")
 
     if IN_COLAB:
         print("Triggering browser download...")
-        files.download(f"{OUT_ROOT}.zip")
+        files.download(f"{out_root}.zip")
     else:
         print(f"Dataset saved locally at: {os.path.abspath(zip_path)}")
 
