@@ -190,9 +190,10 @@ def main():
 
         if not args.quiet:
             print(f"[{i+1:4d}/{len(df)}] {row['sample_id']:16s} "
-                f"pred=({pred_x:7.2f},{pred_y:7.2f})  "
-                f"gt=({gt_x:7.2f},{gt_y:7.2f})  "
-                f"error={err:8.2f}px  {elapsed:.3f}s")
+                  f"pred=({pred_x:7.2f},{pred_y:7.2f})  "
+                  f"gt=({gt_x:7.2f},{gt_y:7.2f})  "
+                  f"error={err:8.2f}px  {elapsed:.3f}s")
+
 
         if (i + 1) % 50 == 0:
             print(f"  -- running mean_err={np.mean([r['pixel_error'] for r in rows]):.2f}px "

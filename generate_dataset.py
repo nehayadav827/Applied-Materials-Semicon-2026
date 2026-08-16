@@ -162,7 +162,7 @@ BASE_SEED = 99991001
 # Defaults used only if the script is run without CLI args (kept for
 # backward-compatible import/testing). Real runs should pass --num_pairs,
 # --output_dir and --architecture explicitly (see argparse in main()).
-DEFAULT_N_SAMPLES = 50
+DEFAULT_N_SAMPLES = 500
 DEFAULT_OUT_ROOT = "./synthetic_sem_dataset_holdout"
 DEFAULT_ARCHITECTURE = "mix"
 

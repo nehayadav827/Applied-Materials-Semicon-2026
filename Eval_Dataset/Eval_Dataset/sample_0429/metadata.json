@@ -1,0 +1,49 @@
+{
+    "sample_id": "sample_0429",
+    "world_id": "8c3a167aa14b",
+    "generation_mode": "realistic",
+    "difficulty": 0.2862,
+    "difficulty_tier": "easy",
+    "difficulty_level_5": 2,
+    "difficulty_level_5_name": "moderate",
+    "world_layout": "grid_streets",
+    "straddles_boundary": false,
+    "reference_centered_on_landmark": true,
+    "mat_styles_in_world": [
+        "dram_staggered_realistic",
+        "finfet_via_realistic",
+        "wavy_dram_bitline"
+    ],
+    "n_landmark_regions_in_world": 4,
+    "n_twin_duplicate_regions_in_world": 0,
+    "citation_keys": [
+        "arxiv_ncfinfet",
+        "hynix_dram",
+        "ibm_finfet14",
+        "irds2024",
+        "sram_6t",
+        "ti_wavy_bitline"
+    ],
+    "search_noise_types": "salt_pepper+raster_drift+shot_noise+edge_brightening",
+    "search_dose_scale": 1.193,
+    "search_shear_px": 1.322,
+    "search_jitter_px": 0.813,
+    "search_beam_spot_nm": 5.57,
+    "search_edge_strength": 0.394,
+    "ref_noise_types": "shot_noise+edge_brightening",
+    "ref_edge_strength": 0.516,
+    "world_ref_crop_xy": [
+        9678,
+        10350
+    ],
+    "world_search_window_xy": [
+        964,
+        1767
+    ],
+    "GT_X_min": 871.4,
+    "GT_Y_min": 858.3,
+    "GT_X_max": 971.4,
+    "GT_Y_max": 958.3,
+    "GT_X": 921.4,
+    "GT_Y": 908.3
+}
