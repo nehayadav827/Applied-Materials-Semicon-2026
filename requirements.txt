@@ -19,3 +19,6 @@ pandas>=2.0
 # train_reranker.py / evaluate.py without --no-cnn. localize.py in its
 # default (best-performing) mode has NO torch dependency at all.
 torch==2.10.0
+
+matplotlib
+scikit-learn
