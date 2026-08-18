@@ -1,18 +1,16 @@
 # SEM Navigation Error Recovery — Wafer Site Localization
 
+## **Demo Video:**
 
-**Demo Video:** 
---
-**test using frontend** - https://www.loom.com/share/250bc63399fd41418f3679019de84057
---
-**tested on 30 samples video link** - https://drive.google.com/file/d/1OfFrgBS9DLr80Lq26Uc-kUlDCYQcnnfX/view
---
-**Dataset:** `https://github.com/nehayadav827/Applied-Materials-Semicon-2026/tree/main/Eval_Dataset`
---
-**Unique images** https://docs.google.com/document/d/19BzJttnVhZkfE4RlggFAp4VYJQfLYAneaWQp9SvFHdA/edit?usp=sharing
---
-**Citation and Reference** https://docs.google.com/document/d/1stQ7oAZ0lftw6mrP_gJRJzDH5o9SCctmOhUHGbZmoew/edit?usp=sharing
----
+## **test using frontend** - https://www.loom.com/share/250bc63399fd41418f3679019de84057
+
+## **tested on 30 samples video link** - https://drive.google.com/file/d/1OfFrgBS9DLr80Lq26Uc-kUlDCYQcnnfX/view
+
+## **Dataset:** `https://github.com/nehayadav827/Applied-Materials-Semicon-2026/tree/main/Eval_Dataset`
+
+## **Unique images** https://docs.google.com/document/d/19BzJttnVhZkfE4RlggFAp4VYJQfLYAneaWQp9SvFHdA/edit?usp=sharing
+
+## **Citation and Reference** https://docs.google.com/document/d/1stQ7oAZ0lftw6mrP_gJRJzDH5o9SCctmOhUHGbZmoew/edit?usp=sharing
 
 ## Overview
 
@@ -39,6 +37,7 @@ Synthetic reference/search pairs generated to reproduce realistic wafer-navigati
 ```bash
 python generate_dataset.py --architecture dram --num_pairs 30 --output_dir ./synthetic_sem_dataset
 ```
+
 (Omit `--architecture` for a mixed-pattern dataset by default.)
 
 Each sample includes `reference.png`, `search.png`, `visualization.png`, and `metadata.json`, with ground-truth coordinates in `ground_truth.csv`.
@@ -55,22 +54,65 @@ pip install -r requirements.txt
 
 ## Running the Pipeline
 
+### 1. Environment Setup
+
 ```bash
-# 1. Precompute hard negatives (only needed if training the optional reranker)
-python precompute_hard_negatives.py --dataset ./synthetic_sem_dataset --out hard_negatives.csv
+pip install -r requirements.txt
+```
 
-# 2. Localize a single reference/search pair
+### 2. Generate the Synthetic Dataset
+
+```bash
+python generate_dataset.py --architecture dram --num_pairs 30 --output_dir ./synthetic_sem_dataset
+```
+
+(Omit `--architecture` for a mixed-pattern dataset by default.)
+
+### 3. Precompute Hard Negatives (for reranker training)
+
+```bash
+python training/precompute_hard_negatives.py --dataset ./synthetic_sem_dataset --out ./hard_negatives.csv
+```
+
+### 4. Train the Reranker Model
+
+This step is optional. The results shown use CV-only matching, so this step can be skipped.
+
+```bash
+python training/train_reranker.py --dataset ./synthetic_sem_dataset --hard_negatives ./hard_negatives.csv --epochs 30 --out ./model/reranker.pt
+```
+
+### 5. Run Localization on a Single Pair
+
+```bash
 python localize.py --reference <reference_image_path> --search <search_image_path>
-# Add --use-cnn --reranker reranker.pt to enable the learned reranker; default mode is pure CV.
+```
 
-# 3. Evaluate on the full dataset
-python evaluate.py --dataset ./synthetic_sem_dataset --reranker reranker.pt --split test --out_csv evaluation_manifest.csv
-# Use --no-cnn to benchmark the raw CV top-1 candidate without the reranker.
+Add `--use-cnn --reranker ./model/reranker.pt` to enable the learned reranker. The default mode is pure CV and does not require Torch.
 
-# 4. Launch the web demo
+### 6. Evaluate the Dataset
+
+Using the trained CNN reranker:
+
+```bash
+python evaluate.py --dataset ./synthetic_sem_dataset --reranker ./model/reranker.pt --split test --out_csv ./results/evaluation_manifest.csv
+```
+
+Without using CNN:
+
+```bash
+python evaluate.py --dataset ./Eval_Dataset --no-cnn --split all
+```
+
+Use `--no-cnn` to benchmark the raw CV top-1 candidate without the reranker.
+
+### 7. Launch the Web Demo
+
+```bash
 cd frontend
 uvicorn api:app --reload --port 8000
 ```
+
 Open `http://localhost:8000` to upload a reference/search pair and view the localization result.
 
 ---
@@ -79,15 +121,15 @@ Open `http://localhost:8000` to upload a reference/search pair and view the loca
 
 **Hardware:** Intel CPU | Python 3.12 | OpenCV 4.11
 
-| Metric | Value |
-|---|---:|
-| Within 5 px | 80.0 % |
-| Within 4 px | 73.3 % |
-| Within 2 px | 63.3 % |
-| Within 1 px | 26.7 % |
-| Median error | 1.80 px |
-| Mean error | 36.04 px (skewed by a few large failures) |
-| Runtime | 0.908 s / 1000×1000 image pair on CPU |
+| Metric       |                                     Value |
+| ------------ | ----------------------------------------: |
+| Within 5 px  |                                    80.0 % |
+| Within 4 px  |                                    73.3 % |
+| Within 2 px  |                                    63.3 % |
+| Within 1 px  |                                    26.7 % |
+| Median error |                                   1.80 px |
+| Mean error   | 36.04 px (skewed by a few large failures) |
+| Runtime      |     0.908 s / 1000×1000 image pair on CPU |
 
 **Success case — `sample_0203`:** ground truth (182.20, 309.20), prediction (181.95, 309.16), error 0.25 px. Demonstrates accurate sub-pixel localization when the target has enough distinguishing structure.
 
@@ -99,24 +141,47 @@ Open `http://localhost:8000` to upload a reference/search pair and view the loca
 
 ## Limitations
 
-- **Synthetic-to-real gap:** the dataset is synthetic; real SEM imagery may include effects not fully captured by the generator.
-- **Fundamental periodic ambiguity:** perfectly periodic regions with no unique context can be genuinely indistinguishable from the reference.
-- **Candidate-generation dependency:** the reranker can only choose among candidates already proposed by the CV stage — if the correct location isn't proposed, it can't be recovered.
+* **Synthetic-to-real gap:** the dataset is synthetic; real SEM imagery may include effects not fully captured by the generator.
+* **Fundamental periodic ambiguity:** perfectly periodic regions with no unique context can be genuinely indistinguishable from the reference.
+* **Candidate-generation dependency:** the reranker can only choose among candidates already proposed by the CV stage — if the correct location isn't proposed, it can't be recovered.
 
 ---
 
 ## Project Structure
 
-```
-├── generate_dataset.py       # Synthetic dataset generator
-├── matching.py                # Candidate generation (CV/NCC matching)
-├── localize.py                # Main localization entry point
-├── precompute_hard_negatives.py
-├── train_reranker.py          # Optional CNN reranker training
-├── evaluate.py                # Batch evaluation
-├── reranker.pt                # Trained reranker weights (optional mode)
-├── Eval_Dataset/               # Evaluation sample pairs + ground truth
-└── frontend/                   # FastAPI web demo
-    ├── api.py
-    └── static/index.html
+```text
+DRIFT-SENSE-REPO/
+│
+├── documentation/
+│   ├── Citation Documents _ Supporting References.pdf
+│   └── unique images.pdf
+│
+├── Eval_Dataset/
+│
+├── frontend/
+│   └── api.py
+│       └── static/
+│           └── index.html
+│
+├── model/
+│   └── reranker.pt
+│
+├── results/
+│   ├── evaluation_manifest_confusion_matrix.csv
+│   ├── evaluation_manifest_confusion_matrix.png
+│   ├── evaluation_manifest.csv
+│   └── failure_case_sample_1181.png
+│
+├── training/
+│   ├── __pycache__/
+│   ├── __init__.py
+│   ├── precompute_hard_negatives.py
+│   └── train_reranker.py
+│
+├── evaluate.py
+├── generate_dataset.py
+├── localize.py
+├── matching.py
+├── README.md
+└── requirements.txt
 ```
