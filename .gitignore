@@ -3,3 +3,4 @@ __pycache__/
 *.pyc
 .ipynb_checkpoints/
 synthetic_sem_dataset*/
+frontend/__pycache__/
