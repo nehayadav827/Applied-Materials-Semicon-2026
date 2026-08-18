@@ -75,7 +75,7 @@ def localize_hybrid_cnn(reference, search, reranker_path):
     """Optional CNN-reranked mode, only reached with --use-cnn. Imports
     torch lazily so the default CV-only path has no torch dependency."""
     import torch
-    from train_reranker import TinyEmbedNet, PATCH_SIZE
+    from training.train_reranker import TinyEmbedNet, PATCH_SIZE
 
     def to_patch_tensor(img_patch):
         p = cv2.resize(img_patch, (PATCH_SIZE, PATCH_SIZE))
@@ -145,7 +145,7 @@ def main():
     parser.add_argument("--use-cnn", action="store_true",
                          help="Opt into the CNN-reranked hybrid mode. OFF by default -- "
                               "see docstring for why.")
-    parser.add_argument("--reranker", default=os.path.join(os.path.dirname(os.path.abspath(__file__)), "reranker.pt"),
+    parser.add_argument("--reranker", default=os.path.join(os.path.dirname(os.path.abspath(__file__)), "model", "reranker.pt"),
                          help="Path to reranker weights, only used with --use-cnn.")
     parser.add_argument("--json", action="store_true",
                          help="Print a JSON object instead of a bare 'x,y' line.")

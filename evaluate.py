@@ -47,7 +47,7 @@ import matplotlib.pyplot as plt
 from sklearn.metrics import confusion_matrix
 
 from matching import generate_candidates
-from train_reranker import TinyEmbedNet, PATCH_SIZE
+from training.train_reranker import TinyEmbedNet, PATCH_SIZE
 
 
 # ============================================================
