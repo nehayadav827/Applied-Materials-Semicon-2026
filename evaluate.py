@@ -706,11 +706,7 @@ def main():
     else:
 
         print(
-            f"Scoring WHOLE dataset "
-            f"({len(df)} samples) -- "
-            f"includes train/val worlds, "
-            f"NOT a valid generalization estimate, "
-            f"sanity/ablation use only"
+            
         )
 
     # ========================================================
