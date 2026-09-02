@@ -1,0 +1,31 @@
+# Generated datasets
+out_setA/
+out_setB/
+out_setC/
+out_setD/
+out_setE/
+
+# Dataset ZIP files
+out_setA.zip
+out_setB.zip
+out_setC.zip
+out_setD.zip
+out_setE.zip
+
+
+# Python cache
+__pycache__/
+*.py[cod]
+
+# Virtual environments
+venv/
+.venv/
+
+# Temporary files
+*.tmp
+*.temp
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db

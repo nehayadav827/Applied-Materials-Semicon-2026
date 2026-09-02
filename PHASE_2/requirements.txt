@@ -1,0 +1,20 @@
+# CPU-only requirements for register.py's reference-machine run
+# (4-core x86 CPU, 8GB RAM, no GPU, no network, Python 3.11).
+# register.py itself only needs numpy/opencv/pandas -- no torch import at
+# all in the graded path. torch/matplotlib/scikit-learn are only needed
+# for eval/evaluate.py's optional --model tiny/improved ablation mode and
+# for the training/ scripts, neither of which run during grading.
+#
+# Install with:
+#   pip install -r requirements.txt
+#   pip install torch==2.2.1+cpu --index-url https://download.pytorch.org/whl/cpu
+#
+# Regenerate the exact pin list from a clean CPU-only venv before
+# resubmitting with: pip freeze > requirements.txt
+
+numpy==1.26.4
+opencv-python==4.9.0.80
+pandas==2.2.1
+matplotlib==3.8.3
+scikit-learn==1.4.1.post1
+torch==2.2.1+cpu
