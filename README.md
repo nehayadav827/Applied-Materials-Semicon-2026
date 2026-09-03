@@ -3,7 +3,7 @@
 ## **Demo Video**
 [Demo video](https://drive.google.com/drive/folders/1Y6IRzIQk8RHsYKf-tzXB4Pzm5mz70lB5)
 
-**The ~12-second frontend time includes API, I/O, and UI overhead. The **6.38 s** figure represents the actual registration pipeline runtime.**
+**The slightly higher frontend time includes API, I/O, and UI overhead. The **6.38 s** figure represents the actual worstcase runtime.**
 ## **Dataset**
 
 [Phase 2 Dataset](https://drive.google.com/drive/folders/1Fi7hhRft6D6QYg-Erb6kYf8tx0cTCOqr?usp=sharing)
@@ -177,7 +177,7 @@ Analyze Results
 
 > **Note:** Replace values enclosed in `< >` with the appropriate architecture, file paths, output folders, or NCC detection threshold for your execution environment.
 
-### Frontend Execution
+### 5. Frontend Execution
 
 First, navigate to the frontend directory:
 
