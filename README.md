@@ -83,18 +83,6 @@ The Phase 2 datasets are organized into the following sets:
 | **Set D**      | 20 **native RGB optical** reference-present pairs representing the official RGB bonus set.                                       |
 | **Set E**      | Additional local **pseudo-RGB** extension using grayscale structures with channel variations, blur, and noise.                   |
 
-## Reference Presence / Rejection
-
-Phase 2 introduces an explicit reference-presence decision.
-
-The registration score is compared against a calibrated threshold:
-
-```
-score >= threshold  → found = 1
-score < threshold   → found = 0
-```
-
-When no reliable match is found, the pose outputs are zeroed according to the Phase 2 output contract.
 
 ## Implementation and Execution Commands
 
@@ -182,6 +170,19 @@ Analyze Results
 ```
 
 > **Note:** Replace values enclosed in `< >` with the appropriate architecture, file paths, output folders, or NCC detection threshold for your execution environment.
+
+## Reference Presence / Rejection
+
+Phase 2 introduces an explicit reference-presence decision.
+
+The registration score is compared against a calibrated threshold:
+
+```
+score >= threshold  → found = 1
+score < threshold   → found = 0
+```
+
+When no reliable match is found, the pose outputs are zeroed according to the Phase 2 output contract.
 
 ## Runtime Budget
 
