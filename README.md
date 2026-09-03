@@ -12,6 +12,92 @@
 [Citation and Reference — Google Docs](https://docs.google.com/document/d/1stQ7oAZ0lftw6mrP_gJRJzDH5o9SCctmOhUHGbZmoew/edit?usp=sharing)
 
 ---
+## Implementation and Execution Commands
+
+### 1. Environment Setup
+
+Install all required Python dependencies:
+
+```bash
+pip install -r requirements.txt
+```
+
+### 2. Generate the Synthetic Dataset
+
+Generate the Phase 2 synthetic evaluation dataset:
+
+```bash
+python generate_dataset.py --architecture <architecture_name> --output_dir <your_output_dataset_folder> --set-wise
+```
+
+For example:
+
+```bash
+python generate_dataset.py --architecture mixed --output_dir ./Eval_Dataset --set-wise
+```
+
+Available architecture options:
+
+- `dram`
+- `finfet`
+- `mixed`
+
+If `--architecture` is omitted, the default mixed architecture is used.
+
+The `--set-wise` option generates the required evaluation sets:
+
+- **Set A** — Nominal grayscale reference-present pairs
+- **Set B** — Degraded grayscale reference-present pairs
+- **Set C** — Reference-absent grayscale pairs
+- **Set D** — Native RGB optical reference-present pairs
+- **Set E** — Pseudo-RGB extension
+
+### 3. Run the Complete Registration Pipeline
+
+Run the registration pipeline using the image-pair CSV:
+
+```bash
+python register.py --input <path_to_pairs.csv> --output <your_output_predictions_file.csv>
+```
+
+Each image pair is registered and its predicted pose, scale, confidence score, and found/reject decision are saved in the output CSV.
+
+### 4. Evaluate Performance
+
+Evaluate the registration results:
+
+```bash
+python evaluate.py --datasets <path_to_dataset_set_folder(s)> --found-threshold <NCC_detection_threshold> --out_dir <your_evaluation_results_folder> --save-predictions
+```
+
+The evaluation produces:
+
+- Localization error
+- Sub-pixel localization accuracy
+- Scale accuracy
+- Rotation accuracy
+- Reference found/reject performance
+- Confusion matrix
+- Runtime statistics
+- Prediction files
+
+### Complete Execution Flow
+
+```text
+Environment Setup
+       ↓
+Generate Synthetic Dataset
+       ↓
+Run Registration Pipeline
+       ↓
+Generate Predictions
+       ↓
+Evaluate Performance
+       ↓
+Analyze Results
+```
+
+> **Note:** Replace values enclosed in `< >` with the appropriate architecture, file paths, output folders, or NCC detection threshold for your execution environment.
 
 # PHASE 2 — Registration Under Unknown Pose
 
