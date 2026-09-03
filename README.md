@@ -90,6 +90,7 @@ The Phase 2 datasets are organized into the following sets:
 
 ```bash
 cd PHASE_2
+```
 
 ### 1. Environment Setup
 
