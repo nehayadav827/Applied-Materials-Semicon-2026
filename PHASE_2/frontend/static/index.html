@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Drift-Sense — Pattern Localization</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #ffffff;
+    --panel: #f7f8fa;
+    --border: #e3e6ea;
+    --text: #16181d;
+    --muted: #6b7280;
+    --blue: #2f6fed;
+    --blue-dim: #dbe6fd;
+    --green: #159a56;
+    --red: #d1453d;
+    --amber: #b4650f;
+    --sans: 'IBM Plex Sans', -apple-system, sans-serif;
+    --mono: 'IBM Plex Mono', ui-monospace, Menlo, Consolas, monospace;
+    --radius: 14px;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    line-height: 1.5;
+    padding: 56px 20px 80px;
+  }
+
+  main { max-width: 940px; margin: 0 auto; }
+
+  header { text-align: center; margin-bottom: 34px; }
+  header h1 { font-size: 34px; font-weight: 700; margin: 0 0 10px; letter-spacing: -0.01em; }
+  header p { font-size: 15px; color: var(--muted); margin: 0; }
+
+  .card {
+    border: 1px solid var(--border);
+    background: var(--panel);
+    border-radius: var(--radius);
+    padding: 28px;
+  }
+
+  .demo-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  @media (max-width: 700px) { .demo-grid { grid-template-columns: 1fr; } }
+
+  .slot-label { font-size: 14px; font-weight: 600; margin-bottom: 10px; }
+  .slot {
+    border: 2px dashed var(--border);
+    background: #ffffff;
+    border-radius: 10px;
+    padding: 20px;
+    min-height: 220px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    text-align: center;
+    transition: border-color 0.15s, background 0.15s;
+  }
+  .slot:hover, .slot.dragover { border-color: var(--blue); background: var(--blue-dim); }
+  .slot.filled { border-style: solid; border-color: var(--blue); }
+  .slot span.hint { font-size: 14px; color: var(--muted); }
+  .slot img { max-width: 100%; max-height: 220px; object-fit: contain; border-radius: 6px; }
+
+  .index-line { text-align: center; font-size: 12px; color: var(--muted); margin-top: 16px; }
+  .index-line a { color: var(--blue); text-decoration: none; margin-left: 8px; }
+  .index-line a:hover { text-decoration: underline; }
+
+  .run-row { text-align: center; margin-top: 24px; }
+  button.run {
+    font-family: var(--sans);
+    background: var(--blue);
+    color: #ffffff;
+    border: none;
+    border-radius: 10px;
+    padding: 14px 40px;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+  button.run:disabled { background: var(--border); color: var(--muted); cursor: not-allowed; }
+  button.run:hover:not(:disabled) { background: #2359c9; }
+
+  .status-line { text-align: center; font-size: 13px; color: var(--muted); margin-top: 12px; min-height: 18px; }
+  .status-line.error { color: var(--red); }
+
+  #demoResult { display: none; margin-top: 28px; }
+  .result-readout { border: 1px solid var(--border); background: var(--panel); border-radius: var(--radius); padding: 24px; }
+  .result-top { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 18px; }
+  .found-badge { font-family: var(--mono); font-size: 13px; padding: 6px 14px; border-radius: 20px; font-weight: 600; letter-spacing: 0.02em; }
+  .found-badge.yes { color: var(--green); background: #e7f7ee; }
+  .found-badge.no { color: var(--red); background: #fbe9e8; }
+  .field-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+  @media (max-width: 700px) { .field-grid { grid-template-columns: repeat(2, 1fr); } }
+  .field { background: #ffffff; border: 1px solid var(--border); border-radius: 8px; padding: 14px 16px; }
+  .field .f-label { font-family: var(--mono); font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+  .field .f-value { font-family: var(--mono); font-size: 17px; margin-top: 6px; }
+  .gt-note { margin-top: 16px; font-size: 13px; color: var(--muted); }
+  .gt-note b { color: var(--text); }
+  .diag-note { margin-top: 12px; font-size: 12px; color: var(--amber); }
+</style>
+</head>
+<body>
+
+<main>
+  <header>
+    <h1>Drift-Sense — Pattern Localization</h1>
+    <p>Locates a high-resolution reference crop inside a wider, lower-resolution search image.</p>
+  </header>
+
+  <div class="card">
+    <div class="demo-grid">
+      <div>
+        <div class="slot-label">Reference Image</div>
+        <div class="slot" id="refSlot">
+          <span class="hint" id="refHint">Drop image here or click to upload</span>
+          <img id="refPreview" style="display:none;">
+        </div>
+      </div>
+      <div>
+        <div class="slot-label">Search Image</div>
+        <div class="slot" id="searchSlot">
+          <span class="hint" id="searchHint">Drop image here or click to upload</span>
+          <img id="searchPreview" style="display:none;">
+        </div>
+      </div>
+      <input type="file" id="refInput" accept="image/*" style="display:none;">
+      <input type="file" id="searchInput" accept="image/*" style="display:none;">
+    </div>
+    <div class="index-line">
+      <span id="gtIndexLine"></span><a href="#" id="reindexLink">reindex</a>
+    </div>
+  </div>
+
+  <div class="run-row">
+    <button class="run" id="runBtn">Run Prediction</button>
+    <div class="status-line" id="statusLine"></div>
+  </div>
+
+  <div id="demoResult"></div>
+</main>
+
+<script>
+const fmt = (v, d=1) => (v === null || v === undefined || Number.isNaN(v)) ? "—" : Number(v).toFixed(d);
+
+async function loadStatus() {
+  try {
+    const r = await fetch("/status");
+    const d = await r.json();
+    const line = `${d.n_samples_indexed} known sample${d.n_samples_indexed === 1 ? "" : "s"} indexed from ${d.n_dataset_dirs} folder${d.n_dataset_dirs === 1 ? "" : "s"}${d.dataset_dirs.length ? " (" + d.dataset_dirs.join(", ") + ")" : ""}`;
+    document.getElementById("gtIndexLine").textContent = line;
+  } catch (e) {
+    document.getElementById("gtIndexLine").textContent = "";
+  }
+}
+loadStatus();
+document.getElementById("reindexLink").addEventListener("click", async (e) => {
+  e.preventDefault();
+  document.getElementById("gtIndexLine").textContent = "reindexing…";
+  try {
+    await fetch("/reindex", { method: "POST" });
+  } finally {
+    loadStatus();
+  }
+});
+
+// ---- Upload slots ----
+function wireSlot(slotId, inputId, hintId, previewId) {
+  const slot = document.getElementById(slotId);
+  const input = document.getElementById(inputId);
+  const hint = document.getElementById(hintId);
+  const preview = document.getElementById(previewId);
+  slot.addEventListener("click", () => input.click());
+  input.addEventListener("change", () => {
+    const file = input.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = e => {
+      preview.src = e.target.result;
+      preview.style.display = "block";
+      hint.style.display = "none";
+      slot.classList.add("filled");
+    };
+    reader.readAsDataURL(file);
+  });
+  ["dragover", "dragleave", "drop"].forEach(evt => slot.addEventListener(evt, e => e.preventDefault()));
+  slot.addEventListener("dragover", () => slot.classList.add("dragover"));
+  slot.addEventListener("dragleave", () => slot.classList.remove("dragover"));
+  slot.addEventListener("drop", e => {
+    slot.classList.remove("dragover");
+    const file = e.dataTransfer.files[0];
+    if (!file) return;
+    input.files = e.dataTransfer.files;
+    input.dispatchEvent(new Event("change"));
+  });
+}
+wireSlot("refSlot", "refInput", "refHint", "refPreview");
+wireSlot("searchSlot", "searchInput", "searchHint", "searchPreview");
+
+const runBtn = document.getElementById("runBtn");
+const statusLine = document.getElementById("statusLine");
+const demoResult = document.getElementById("demoResult");
+
+function setStatus(msg, isError) {
+  statusLine.textContent = msg;
+  statusLine.className = "status-line" + (isError ? " error" : "");
+}
+
+runBtn.addEventListener("click", async () => {
+  const refFile = document.getElementById("refInput").files[0];
+  const searchFile = document.getElementById("searchInput").files[0];
+  if (!refFile) { setStatus("Upload a reference image first.", true); return; }
+  if (!searchFile) { setStatus("Upload a search image first.", true); return; }
+
+  demoResult.style.display = "none";
+  runBtn.disabled = true;
+  setStatus("Running registration…", false);
+
+  const formData = new FormData();
+  formData.append("reference", refFile);
+  formData.append("search", searchFile);
+
+  try {
+    const resp = await fetch("/predict", { method: "POST", body: formData });
+    const data = await resp.json();
+    if (!resp.ok) throw new Error(data.error || "Prediction failed.");
+    renderDemoResult(data);
+    setStatus(`Done in ${data.runtime_s}s.`, false);
+  } catch (err) {
+    setStatus(err.message.includes("Failed to fetch") ? "Could not reach the backend." : err.message, true);
+  } finally {
+    runBtn.disabled = false;
+  }
+});
+
+function renderDemoResult(d) {
+  const found = d.found === 1;
+  let gtHtml = "";
+  if (d.has_gt) {
+    if (d.gt_is_present === false) {
+      gtHtml = `<div class="gt-note">Matched known sample <b>${d.matched_sample_id}</b> (${d.matched_source}) — ground truth: <b>absent</b> pair.</div>`;
+    } else {
+      gtHtml = `<div class="gt-note">Matched known sample <b>${d.matched_sample_id}</b> (${d.matched_source}) —
+        GT: (${fmt(d.gt_x,1)}, ${fmt(d.gt_y,1)})${d.pixel_error !== null && d.pixel_error !== undefined ? ` · pixel error <b>${fmt(d.pixel_error,2)}px</b>` : ""}</div>`;
+    }
+  } else {
+    gtHtml = `<div class="gt-note">No ground truth on file for this pair — not a known generated sample.</div>`;
+  }
+
+  let diagHtml = "";
+  if (!found && d.diagnostic_raw_xy) {
+    diagHtml = `<div class="diag-note">Diagnostic only (not part of the output contract): raw candidate was at
+      (${d.diagnostic_raw_xy.x}, ${d.diagnostic_raw_xy.y}) — score ${d.raw_ncc_score} fell short of the found threshold ${d.found_threshold}.</div>`;
+  }
+
+  demoResult.innerHTML = `
+    <div class="result-readout">
+      <div class="result-top">
+        <div class="found-badge ${found ? 'yes' : 'no'}">${found ? "FOUND" : "REJECTED"}</div>
+        <div style="font-size:12px;color:var(--muted);">mode: ${d.mode} · raw NCC ${d.raw_ncc_score} vs threshold ${d.found_threshold}</div>
+      </div>
+      <div class="field-grid">
+        <div class="field"><div class="f-label">x</div><div class="f-value">${d.x}</div></div>
+        <div class="field"><div class="f-label">y</div><div class="f-value">${d.y}</div></div>
+        <div class="field"><div class="f-label">theta</div><div class="f-value">${d.theta}°</div></div>
+        <div class="field"><div class="f-label">scale</div><div class="f-value">${d.scale}</div></div>
+      </div>
+      <div class="field-grid" style="margin-top:10px;">
+        <div class="field"><div class="f-label">found</div><div class="f-value">${d.found}</div></div>
+        <div class="field"><div class="f-label">score</div><div class="f-value">${d.score}</div></div>
+        <div class="field"><div class="f-label">runtime</div><div class="f-value">${d.runtime_s}s</div></div>
+        <div class="field"><div class="f-label">channels</div><div class="f-value">${d.mode}</div></div>
+      </div>
+      ${gtHtml}
+      ${diagHtml}
+    </div>`;
+  demoResult.style.display = "block";
+}
+</script>
+</body>
+</html>
