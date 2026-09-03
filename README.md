@@ -12,6 +12,90 @@
 [Citation and Reference — Google Docs](https://docs.google.com/document/d/1stQ7oAZ0lftw6mrP_gJRJzDH5o9SCctmOhUHGbZmoew/edit?usp=sharing)
 
 ---
+
+# PHASE 2 — Registration Under Unknown Pose
+
+**Applied Materials Semicon India Hackathon 2026 — Phase 2 Submission**
+
+## Overview
+
+Phase 2 extends the Phase 1 wafer-site localization pipeline to handle **unknown scale (8×–12×), unknown rotation (±5°), reference-presence detection, and RGB optical imagery**, while preserving the same classical computer-vision approach.
+
+The final graded path uses **classical computer vision only**, with no deep-learning dependency.
+
+## Approach
+
+**Classical computer vision only** — multi-scale, multi-rotation normalized cross-correlation (`cv2.matchTemplate`, `TM_CCOEFF_NORMED`) over the disclosed pose space:
+
+-  Scale: **8×–12×** 
+-  Rotation: **±5°** 
+-  Multiple local NCC candidate peaks 
+-  Sub-pixel peak refinement 
+-  Nearest-to-centre selection among near-tied candidates 
+-  Local scale/rotation refinement 
+-  Reference-present / reference-absent decision 
+
+The same standalone registration entry point automatically handles both **grayscale SEM** and **RGB optical** image pairs.
+
+This is a deliberate extension of the Phase 1 approach rather than a replacement. The final graded path remains CV-only.
+
+## Phase 2 Graded Entry Point
+
+The required submission entry point is:
+
+```
+python register.py --input pairs.csv --output predictions.csv
+```
+
+`pairs.csv` accepts a pair ID together with reference and search image paths.
+
+The prediction output follows the required format:
+
+```
+pair_id,x,y,theta,scale,found,score
+```
+
+When `found=0`, `x`, `y`, `theta`, and `scale` are written as `0`.
+
+## RGB Extension
+
+Phase 2 extends the registration pipeline to **native 3-channel optical RGB imagery**.
+
+The RGB matcher combines:
+
+- **LAB luminance** 
+- **Chromatic information** 
+- **Structural gradient information** 
+
+This preserves the geometric matching behaviour of the classical NCC pipeline while adding color as an additional appearance cue.
+
+The same standalone registration entry point automatically detects grayscale and RGB inputs and applies the corresponding matcher.
+
+## Phase 2 Dataset
+
+The Phase 2 datasets are organized into the following sets:
+
+| SetDescription |                                                                                                                                  |
+| -------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| **Set A**      | 70 nominal grayscale reference-present pairs with unknown scale (8×–12×) and rotation (±5°).                                     |
+| **Set B**      | 70 degraded grayscale reference-present pairs with charging, scan distortion, defocus, elevated shot noise, and polygon scaling. |
+| **Set C**      | 40 reference-absent grayscale pairs containing structurally/periodically similar regions to test rejection.                      |
+| **Set D**      | 20 **native RGB optical** reference-present pairs representing the official RGB bonus set.                                       |
+| **Set E**      | Additional local **pseudo-RGB** extension using grayscale structures with channel variations, blur, and noise.                   |
+
+## Reference Presence / Rejection
+
+Phase 2 introduces an explicit reference-presence decision.
+
+The registration score is compared against a calibrated threshold:
+
+```
+score >= threshold  → found = 1
+score < threshold   → found = 0
+```
+
+When no reliable match is found, the pose outputs are zeroed according to the Phase 2 output contract.
+
 ## Implementation and Execution Commands
 
 ### 1. Environment Setup
@@ -98,89 +182,6 @@ Analyze Results
 ```
 
 > **Note:** Replace values enclosed in `< >` with the appropriate architecture, file paths, output folders, or NCC detection threshold for your execution environment.
-
-# PHASE 2 — Registration Under Unknown Pose
-
-**Applied Materials Semicon India Hackathon 2026 — Phase 2 Submission**
-
-## Overview
-
-Phase 2 extends the Phase 1 wafer-site localization pipeline to handle **unknown scale (8×–12×), unknown rotation (±5°), reference-presence detection, and RGB optical imagery**, while preserving the same classical computer-vision approach.
-
-The final graded path uses **classical computer vision only**, with no deep-learning dependency.
-
-## Approach
-
-**Classical computer vision only** — multi-scale, multi-rotation normalized cross-correlation (`cv2.matchTemplate`, `TM_CCOEFF_NORMED`) over the disclosed pose space:
-
--  Scale: **8×–12×** 
--  Rotation: **±5°** 
--  Multiple local NCC candidate peaks 
--  Sub-pixel peak refinement 
--  Nearest-to-centre selection among near-tied candidates 
--  Local scale/rotation refinement 
--  Reference-present / reference-absent decision 
-
-The same standalone registration entry point automatically handles both **grayscale SEM** and **RGB optical** image pairs.
-
-This is a deliberate extension of the Phase 1 approach rather than a replacement. The final graded path remains CV-only.
-
-## Phase 2 Graded Entry Point
-
-The required submission entry point is:
-
-```
-python register.py --input pairs.csv --output predictions.csv
-```
-
-`pairs.csv` accepts a pair ID together with reference and search image paths.
-
-The prediction output follows the required format:
-
-```
-pair_id,x,y,theta,scale,found,score
-```
-
-When `found=0`, `x`, `y`, `theta`, and `scale` are written as `0`.
-
-## RGB Extension
-
-Phase 2 extends the registration pipeline to **native 3-channel optical RGB imagery**.
-
-The RGB matcher combines:
-
-- **LAB luminance** 
-- **Chromatic information** 
-- **Structural gradient information** 
-
-This preserves the geometric matching behaviour of the classical NCC pipeline while adding color as an additional appearance cue.
-
-The same standalone registration entry point automatically detects grayscale and RGB inputs and applies the corresponding matcher.
-
-## Phase 2 Dataset
-
-The Phase 2 datasets are organized into the following sets:
-
-| SetDescription |                                                                                                                                  |
-| -------------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| **Set A**      | 70 nominal grayscale reference-present pairs with unknown scale (8×–12×) and rotation (±5°).                                     |
-| **Set B**      | 70 degraded grayscale reference-present pairs with charging, scan distortion, defocus, elevated shot noise, and polygon scaling. |
-| **Set C**      | 40 reference-absent grayscale pairs containing structurally/periodically similar regions to test rejection.                      |
-| **Set D**      | 20 **native RGB optical** reference-present pairs representing the official RGB bonus set.                                       |
-| **Set E**      | Additional local **pseudo-RGB** extension using grayscale structures with channel variations, blur, and noise.                   |
-
-## Reference Presence / Rejection
-
-Phase 2 introduces an explicit reference-presence decision.
-
-The registration score is compared against a calibrated threshold:
-
-```
-score >= threshold  → found = 1
-score < threshold   → found = 0
-```
-
-When no reliable match is found, the pose outputs are zeroed according to the Phase 2 output contract.
 
 ## Runtime Budget
 
