@@ -2,6 +2,7 @@
 
 ## **Demo Video**
 [Demo video](https://drive.google.com/drive/folders/1Y6IRzIQk8RHsYKf-tzXB4Pzm5mz70lB5)
+
 **The ~12-second frontend time includes API, I/O, and UI overhead. The **6.38 s** figure represents the actual registration pipeline runtime.**
 ## **Dataset**
 
