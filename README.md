@@ -1,7 +1,19 @@
 # SEM Navigation Error Recovery — Wafer Site Localization
 
 ## **Demo Video**
+[Demo video](https://drive.google.com/drive/folders/1Y6IRzIQk8RHsYKf-tzXB4Pzm5mz70lB5)
 
+### Runtime Performance
+
+The core registration pipeline was benchmarked independently of the frontend:
+
+| Metric | Runtime |
+|---|---:|
+| Median | **3.37 s/pair** |
+| Worst case | **6.38 s/pair** |
+| Frontend end-to-end | ~12 s |
+
+> The ~12-second frontend time includes API, I/O, and UI overhead. The **6.38 s** figure represents the actual registration pipeline runtime.
 
 ## **Dataset**
 
