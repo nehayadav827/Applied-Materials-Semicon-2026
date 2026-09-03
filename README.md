@@ -2,19 +2,7 @@
 
 ## **Demo Video**
 [Demo video](https://drive.google.com/drive/folders/1Y6IRzIQk8RHsYKf-tzXB4Pzm5mz70lB5)
-
-### Runtime Performance
-
-The core registration pipeline was benchmarked independently of the frontend:
-
-| Metric | Runtime |
-|---|---:|
-| Median | **3.37 s/pair** |
-| Worst case | **6.38 s/pair** |
-| Frontend end-to-end | ~12 s |
-
-> The ~12-second frontend time includes API, I/O, and UI overhead. The **6.38 s** figure represents the actual registration pipeline runtime.
-
+**The ~12-second frontend time includes API, I/O, and UI overhead. The **6.38 s** figure represents the actual registration pipeline runtime.**
 ## **Dataset**
 
 [Phase 2 Dataset](https://drive.google.com/drive/folders/1Fi7hhRft6D6QYg-Erb6kYf8tx0cTCOqr?usp=sharing)
@@ -97,6 +85,10 @@ The Phase 2 datasets are organized into the following sets:
 
 
 ## Implementation and Execution Commands
+**Before running the commands, navigate to the Phase 2 directory:**
+
+```bash
+cd PHASE_2
 
 ### 1. Environment Setup
 
