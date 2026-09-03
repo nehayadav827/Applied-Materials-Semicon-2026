@@ -176,6 +176,16 @@ Analyze Results
 
 > **Note:** Replace values enclosed in `< >` with the appropriate architecture, file paths, output folders, or NCC detection threshold for your execution environment.
 
+### Frontend Execution
+
+First, navigate to the frontend directory:
+
+```bash
+cd PHASE_2
+cd frontend
+uvicorn api:app --reload --port 8000
+```
+
 ## Reference Presence / Rejection
 
 Phase 2 introduces an explicit reference-presence decision.
